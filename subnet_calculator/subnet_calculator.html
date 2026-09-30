@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Subnet Calculator</title>
+  <style>
+    :root { --muted: #555; --line: #d8d8d8; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", Inter, system-ui, sans-serif; background: #fff; color: #000; min-height: 100vh; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
+    header h1 { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 2rem; letter-spacing: -0.03em; animation: fadeUp .6s both; }
+    .card { background: #fff; border: 1px solid #000; border-radius: 14px; padding: 20px; margin-top: 20px; animation: fadeUp .6s .1s both; }
+    .grid { display: grid; grid-template-columns: 1.4fr 0.6fr; gap: 12px; }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+    input, button { width: 100%; border-radius: 10px; border: 1px solid #000; background: #fff; color: #000; padding: 10px 12px; font: inherit; transition: transform .15s, background .2s, color .2s, box-shadow .2s; }
+    input:focus, button:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+    button { cursor: pointer; background: #000; color: #fff; font-weight: 700; }
+    button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+    button:active { transform: scale(.97); }
+    button.ghost { background: #fff; color: #000; font-weight: 600; }
+    button.ghost:hover { background: #000; color: #fff; }
+    button:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .actions button { width: auto; }
+    .host-rows { display: grid; gap: 8px; margin-top: 8px; }
+    .host-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 8px; align-items: center; }
+    .host-row label { margin: 0; color: #000; font-weight: 600; }
+    .host-row button { width: auto; }
+    .host-row.enter { animation: rowIn .3s ease both; }
+    .host-row.leaving { animation: rowOut .22s ease forwards; }
+    .error { display: none; margin-top: 12px; color: #b00020; background: #fff5f5; border: 1px solid #b00020; padding: 10px 12px; border-radius: 10px; animation: rowIn .3s both; }
+    h2 { margin: 0 0 12px; font-size: 1.15rem; }
+    .table-wrap { overflow: auto; border: 1px solid #000; border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 640px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+    th { background: #f0f0f0; color: #000; position: sticky; top: 0; }
+    tr:nth-child(even) td { background: #fafafa; }
+    tbody tr { animation: rowIn .4s ease both; }
+    .hidden { display: none; }
+    .diagram { overflow: auto; background: #fff; border: 1px solid #000; border-radius: 12px; padding: 16px; }
+    .legend { color: var(--muted); font-size: 0.85rem; margin-top: 10px; }
+    .overlay { position: fixed; inset: 0; display: none; place-items: center; background: rgba(255,255,255,.85); backdrop-filter: blur(4px); z-index: 20; }
+    .overlay.show { display: grid; animation: fadeUp .25s both; }
+    .loader { text-align: center; }
+    .spinner { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 50%; border: 5px solid #ddd; border-top-color: #000; animation: spin .8s linear infinite; }
+    svg text { font-family: inherit; fill: #000; }
+    .link { fill: none; stroke: #000; stroke-width: 1.6; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .7s ease forwards; }
+    .pop { opacity: 0; transform-box: fill-box; transform-origin: center; animation: pop .45s cubic-bezier(.2,.9,.3,1.3) forwards; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes rowIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+    @keyframes rowOut { to { opacity: 0; transform: translateX(24px); } }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } .host-row { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; animation-delay: 0s !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><h1>
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="6" width="32" height="22" rx="3"/>
+        <path d="M15 34h10M20 28v6"/>
+        <path d="M9 12h8" stroke-width="2"/>
+      </svg>
+      Subnet Calculator</h1></header>
+
+    <section class="card">
+      <form id="calc-form">
+        <div class="grid">
+          <div>
+            <label for="ip">IP Address</label>
+            <input id="ip" value="192.168.10.0" autocomplete="off" />
+          </div>
+          <div>
+            <label for="cidr">CIDR</label>
+            <input id="cidr" value="24" />
+          </div>
+        </div>
+        <h2 style="margin-top: 20px;">Subnets</h2>
+        <div class="host-rows" id="host-rows"></div>
+        <div class="actions">
+          <button type="button" class="ghost" id="add-subnet">+ Add subnet</button>
+          <button type="submit">Calculate</button>
+        </div>
+        <div class="error" id="error"></div>
+      </form>
+    </section>
+
+    <section class="card hidden" id="results">
+      <h2>IP address report</h2>
+      <div class="actions">
+        <button type="button" class="ghost" data-export="summary-csv">Export summary CSV</button>
+        <button type="button" class="ghost" data-export="summary-json">Export summary JSON</button>
+      </div>
+      <div class="table-wrap">
+        <table id="summary-table">
+          <thead><tr><th>Field</th><th>Decimal</th><th>Binary / note</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h2 style="margin-top: 28px;">Subnetting plan</h2>
+      <div class="actions">
+        <button type="button" class="ghost" data-export="plan-csv">Export plan CSV</button>
+        <button type="button" class="ghost" data-export="plan-json">Export plan JSON</button>
+      </div>
+      <div class="table-wrap">
+        <table id="plan-table">
+          <thead>
+            <tr><th>Subnet</th><th>Requested hosts</th><th>Block size</th><th>CIDR</th><th>Network</th><th>First usable</th><th>Last usable</th><th>Broadcast</th><th>Usable hosts</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h2 style="margin-top: 28px;">Network topology</h2>
+      <div class="actions">
+        <button type="button" class="ghost" id="save-png">Save topology as PNG</button>
+      </div>
+      <div class="diagram" id="diagram" style="margin-top: 12px;"></div>
+      <p class="legend">The router connects every subnet; computers link to their subnet. Each subnet shows its network/CIDR. Computer icons are capped at 4 per subnet so large counts stay readable. Subnets are allocated largest-first.</p>
+    </section>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="loader"><div class="spinner"></div><div>Calculating subnets…</div></div>
+  </div>
+
+  <script>
+    const DEFAULT_HOSTS = [60, 30, 14, 6];
+    const MAX_HOST_ICONS = 4;
+    let lastResult = null;
+
+    function parseOctets(text) {
+      const parts = text.replaceAll(",", ".").split(".").map((p) => p.trim());
+      if (parts.length !== 4) throw new Error("Enter an IPv4 address as n1.n2.n3.n4");
+      const octets = parts.map((p) => Number(p));
+      if (octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) {
+        throw new Error("Each octet must be between 0 and 255");
+      }
+      return octets;
+    }
+
+    function parseCidr(text) {
+      const cidr = Number(String(text).trim().replace(/^\//, ""));
+      if (!Number.isInteger(cidr) || cidr < 0 || cidr > 32) {
+        throw new Error("CIDR must be between 0 and 32");
+      }
+      return cidr;
+    }
+
+    function ipToInt(n1, n2, n3, n4) {
+      return (((n1 << 24) >>> 0) + (n2 << 16) + (n3 << 8) + n4) >>> 0;
+    }
+
+    function intToIp(value) {
+      const n = value >>> 0;
+      return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(".");
+    }
+
+    function dottedToBinary(dotted) {
+      return dotted.split(".").map((o) => Number(o).toString(2).padStart(8, "0")).join(" ");
+    }
+
+    function padOctetBinary(n) {
+      return n.toString(2).padStart(8, "0");
+    }
+
+    class IPAddress {
+      constructor(n1, n2, n3, n4, c) {
+        if ([n1, n2, n3, n4].some((n) => n < 0 || n > 255)) {
+          throw new Error("Invalid octet: must be within 0 and 255");
+        }
+        if (c < 0 || c > 32) throw new Error("CIDR must be within 0 and 32");
+        this.n1 = n1; this.n2 = n2; this.n3 = n3; this.n4 = n4; this.c = c;
+      }
+
+      get Address() { return `${this.n1}.${this.n2}.${this.n3}.${this.n4}/${this.c}`; }
+
+      get Host() {
+        const host = [this.n1, this.n2, this.n3, this.n4];
+        return [host.map(padOctetBinary).join(" "), host.join(".")];
+      }
+
+      get Mask() {
+        const bits = "1".repeat(this.c).padEnd(32, "0");
+        const binary = [];
+        const decimal = [];
+        for (let j = 0; j < 32; j += 8) {
+          const bina = bits.slice(j, j + 8);
+          binary.push(bina);
+          decimal.push(parseInt(bina, 2));
+        }
+        return [binary.join(" "), decimal.join(".")];
+      }
+
+      get Subnet() {
+        const hostBits = this.Host[0].replaceAll(" ", "");
+        const maskBits = this.Mask[0].replaceAll(" ", "");
+        let andBits = "";
+        for (let i = 0; i < 32; i++) andBits += hostBits[i] === "1" && maskBits[i] === "1" ? "1" : "0";
+        return bitsToPair(andBits);
+      }
+
+      get Broadcast() {
+        const subnet = this.Subnet[0].replaceAll(" ", "");
+        const mask = this.Mask[0].replaceAll(" ", "");
+        let orBits = "";
+        for (let i = 0; i < 32; i++) {
+          const inverted = mask[i] === "0" ? "1" : "0";
+          orBits += inverted === "1" || subnet[i] === "1" ? "1" : "0";
+        }
+        return bitsToPair(orBits);
+      }
+
+      get HostBinary() { return this.Host[0]; }
+      get HostDecimal() { return this.Host[1]; }
+      get MaskBinary() { return this.Mask[0]; }
+      get MaskDecimal() { return this.Mask[1]; }
+      get SubnetBinary() { return this.Subnet[0]; }
+      get SubnetDecimal() { return this.Subnet[1]; }
+      get BroadcastBinary() { return this.Broadcast[0]; }
+      get BroadcastDecimal() { return this.Broadcast[1]; }
+    }
+
+    class ExtendedAddress extends IPAddress {
+      get IsPrivate() {
+        if (this.n1 === 10) return true;
+        if (this.n1 === 172 && this.n2 >= 16 && this.n2 <= 31) return true;
+        if (this.n1 === 192 && this.n2 === 168) return true;
+        return false;
+      }
+      get IPType() { return this.IsPrivate ? "Private IP" : "Public IP"; }
+    }
+
+    function bitsToPair(bits) {
+      const binary = [];
+      const decimal = [];
+      for (let j = 0; j < 32; j += 8) {
+        const bina = bits.slice(j, j + 8);
+        binary.push(bina);
+        decimal.push(parseInt(bina, 2));
+      }
+      return [binary.join(" "), decimal.join(".")];
+    }
+
+    function networkAddress(ip) {
+      if (ip.n1 >= 1 && ip.n1 <= 127) return "Network Class A";
+      if (ip.n1 >= 128 && ip.n1 <= 191) return "Network Class B";
+      if (ip.n1 >= 192 && ip.n1 <= 223) return "Network Class C";
+      if (ip.n1 >= 224 && ip.n1 <= 239) return "Network Class D (Multicast)";
+      if (ip.n1 >= 240 && ip.n1 <= 255) return "Network Class E (Experimental)";
+      return null;
+    }
+
+    function defaultPrefix(ip) {
+      const klass = networkAddress(ip);
+      if (klass === "Network Class A") return 8;
+      if (klass === "Network Class B") return 16;
+      if (klass === "Network Class C") return 24;
+      return null;
+    }
+
+    function hostBits(c) { return 32 - c; }
+
+    function subnetBits(c, ip) {
+      const prefix = defaultPrefix(ip);
+      return prefix == null ? null : c - prefix;
+    }
+
+    function usableHosts(c) { return (2 ** (32 - c)) - 2; }
+
+    function countUsableSubnets(c, ip) {
+      const name = networkAddress(ip);
+      const prefix = defaultPrefix(ip);
+      if (prefix == null) throw new Error("Cannot count classful subnets for this address class");
+      if (c > prefix) return [name, 2 ** (c - prefix)];
+      if (c === prefix) return [name, 1];
+      throw new Error(`Supernetting: cannot calculate subnets (CIDR: /${c} < default /${prefix})`);
+    }
+
+    function firstLastFromNetwork(networkDotted, broadcastDotted) {
+      const net = ipToInt(...networkDotted.split(".").map(Number));
+      const bcast = ipToInt(...broadcastDotted.split(".").map(Number));
+      if ((bcast - net) < 2) return [networkDotted, broadcastDotted];
+      return [intToIp(net + 1), intToIp(bcast - 1)];
+    }
+
+    function getRequiredHosts(hosts) {
+      const required = [];
+      for (const host of Object.values(hosts)) {
+        let size = 4;
+        while (size - 2 < host) {
+          size *= 2;
+          if (size > 2 ** 32) throw new Error(`Host requirement ${host} is too large`);
+        }
+        required.push(size);
+      }
+      return required;
+    }
+
+    function getCidr(requiredHosts) {
+      return requiredHosts.map((hosts) => 32 - Math.log2(hosts));
+    }
+
+    function subnettingPlan(baseInt, prefix, hosts) {
+      const requiredHosts = getRequiredHosts(hosts);
+      const cidrs = getCidr(requiredHosts);
+      const names = Object.keys(hosts);
+      const parentSize = 2 ** (32 - prefix);
+      const parentEnd = (baseInt + parentSize - 1) >>> 0;
+      let current = baseInt >>> 0;
+      const results = [];
+
+      for (let i = 0; i < names.length; i++) {
+        const c = cidrs[i];
+        const block = requiredHosts[i];
+        const mask = prefixMask(c);
+        const networkAddr = (current & mask) >>> 0;
+        if (networkAddr !== current) {
+          throw new Error(`${names[i]} is not aligned on a /${c} boundary`);
+        }
+        const broadcastAddr = (networkAddr + block - 1) >>> 0;
+        if (broadcastAddr > parentEnd) {
+          throw new Error("Subnet allocations exceed the parent network");
+        }
+        const first = (networkAddr + 1) >>> 0;
+        const last = (broadcastAddr - 1) >>> 0;
+        results.push({
+          name: names[i],
+          requested_hosts: hosts[names[i]],
+          block_size: block,
+          cidr: c,
+          network: intToIp(networkAddr),
+          broadcast: intToIp(broadcastAddr),
+          first: intToIp(first),
+          last: intToIp(last),
+          usable: (2 ** (32 - c)) - 2,
+        });
+        current = (last + 2) >>> 0;
+      }
+      return results;
+    }
+
+    function prefixMask(c) {
+      if (c === 0) return 0;
+      return (0xFFFFFFFF << (32 - c)) >>> 0;
+    }
+
+    function networkBase(n1, n2, n3, n4, c) {
+      return (ipToInt(n1, n2, n3, n4) & prefixMask(c)) >>> 0;
+    }
+
+    function showError(message) {
+      const el = document.getElementById("error");
+      el.textContent = message;
+      el.style.display = "block";
+    }
+
+    function clearError() {
+      const el = document.getElementById("error");
+      el.textContent = "";
+      el.style.display = "none";
+    }
+
+    const MAX_SUBNETS = 32;
+
+    function activeRows() {
+      return [...document.querySelectorAll("#host-rows .host-row:not(.leaving)")];
+    }
+
+    function refreshRows() {
+      const rows = activeRows();
+      rows.forEach((row, i) => {
+        row.querySelector("label").textContent = `Subnet ${i + 1} hosts`;
+        row.querySelector("input").setAttribute("aria-label", `Subnet ${i + 1} hosts`);
+        row.querySelector(".remove-row").disabled = rows.length <= 1;
+      });
+      document.getElementById("add-subnet").disabled = rows.length >= MAX_SUBNETS;
+    }
+
+    function addSubnet(hosts = 10, animate = true) {
+      if (activeRows().length >= MAX_SUBNETS) return;
+      clearError();
+      const row = document.createElement("div");
+      row.className = "host-row" + (animate ? " enter" : "");
+      row.innerHTML = `
+        <label></label>
+        <input type="number" min="1" class="host-input" value="${hosts}" />
+        <button type="button" class="ghost remove-row">Remove</button>
+      `;
+      row.querySelector(".remove-row").addEventListener("click", () => removeSubnet(row));
+      document.getElementById("host-rows").appendChild(row);
+      refreshRows();
+      if (animate) row.querySelector("input").focus();
+    }
+
+    function removeSubnet(row) {
+      if (activeRows().length <= 1) return;
+      row.classList.add("leaving");
+      refreshRows();
+      setTimeout(() => row.remove(), 220);
+    }
+
+    function initSubnets() {
+      DEFAULT_HOSTS.forEach((h) => addSubnet(h, false));
+    }
+
+    function fillTable(table, rows) {
+      const body = table.querySelector("tbody");
+      body.innerHTML = rows.map((cols, i) => `<tr style="animation-delay:${i * 35}ms">${cols.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function download(filename, text, mime) {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function toCsv(headers, rows) {
+      const all = [headers, ...rows];
+      return all.map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+    }
+
+    function computerIcon(cx, y, delay) {
+      return `
+        <g transform="translate(${cx - 14} ${y})">
+          <g class="pop" style="animation-delay:${delay}ms">
+            <rect x="0" y="0" width="28" height="20" rx="3" fill="#fff" stroke="#000" stroke-width="1.6"/>
+            <rect x="9" y="21" width="10" height="3" fill="#000"/>
+            <rect x="5" y="24" width="18" height="2" rx="1" fill="#000"/>
+          </g>
+        </g>
+      `;
+    }
+
+    function drawDiagram(parentNet, plan) {
+      const colW = 240, n = plan.length;
+      const width = Math.max(520, n * colW);
+      const offset = (width - n * colW) / 2;
+      const routerX = width / 2, routerY = 16, routerW = 170, routerH = 54;
+      const subY = 140, subW = 190, subH = 70, pcY = 290, height = 370;
+      const routerBottom = routerY + routerH;
+      let links = "";
+      let nodes = `
+        <g class="pop" style="animation-delay:0ms">
+          <rect x="${routerX - routerW / 2}" y="${routerY}" width="${routerW}" height="${routerH}" rx="12" fill="#000"/>
+          <text x="${routerX}" y="${routerY + 22}" text-anchor="middle" font-size="14" font-weight="700" style="fill:#fff">Router</text>
+          <text x="${routerX}" y="${routerY + 40}" text-anchor="middle" font-size="11" style="fill:#fff">${escapeHtml(parentNet)}</text>
+        </g>`;
+
+      plan.forEach((row, i) => {
+        const cx = offset + i * colW + colW / 2;
+        const delay = 300 + i * 180;
+        links += `<path class="link" pathLength="1" style="animation-delay:${delay - 150}ms" d="M${routerX} ${routerBottom} V${(routerBottom + subY) / 2} H${cx} V${subY}"/>`;
+        nodes += `
+          <g class="pop" style="animation-delay:${delay}ms">
+            <rect x="${cx - subW / 2}" y="${subY}" width="${subW}" height="${subH}" rx="10" fill="#f2f2f2" stroke="#000" stroke-width="1.6"/>
+            <text x="${cx}" y="${subY + 22}" text-anchor="middle" font-size="14" font-weight="700">${escapeHtml(row.name)}</text>
+            <text x="${cx}" y="${subY + 41}" text-anchor="middle" font-size="12">${row.network}/${row.cidr}</text>
+            <text x="${cx}" y="${subY + 58}" text-anchor="middle" font-size="11" style="fill:#555">${row.requested_hosts} hosts requested</text>
+          </g>`;
+        const shown = Math.min(row.requested_hosts, MAX_HOST_ICONS);
+        const startX = cx - ((shown - 1) * 52) / 2;
+        for (let k = 0; k < shown; k++) {
+          const px = startX + k * 52;
+          const pd = delay + 250 + k * 90;
+          links += `<path class="link" pathLength="1" style="animation-delay:${pd - 120}ms" d="M${cx} ${subY + subH} V${(subY + subH + pcY) / 2} H${px} V${pcY}"/>`;
+          nodes += computerIcon(px, pcY, pd);
+        }
+        if (row.requested_hosts > shown) {
+          nodes += `<text x="${cx}" y="${pcY + 50}" text-anchor="middle" font-size="11" style="fill:#555">+${row.requested_hosts - shown} more hosts</text>`;
+        }
+      });
+
+      document.getElementById("diagram").innerHTML =
+        `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="max-width:none">${links}${nodes}</svg>`;
+    }
+
+    function compute() {
+      const [n1, n2, n3, n4] = parseOctets(document.getElementById("ip").value);
+      const cidr = parseCidr(document.getElementById("cidr").value);
+      const hostInputs = [...document.querySelectorAll(".host-input")];
+      if (!hostInputs.length) throw new Error("Add at least one subnet host count");
+      const entries = hostInputs.map((input, i) => {
+        const value = Number(input.value);
+        if (!Number.isInteger(value) || value < 1) {
+          throw new Error("Each subnet needs at least 1 host");
+        }
+        return [`Subnet ${i + 1}`, value];
+      });
+      entries.sort((a, b) => b[1] - a[1]); // largest first so blocks stay aligned
+      const hosts = Object.fromEntries(entries);
+
+      const ip = new ExtendedAddress(n1, n2, n3, n4, cidr);
+      const klass = networkAddress(ip) || "Unclassified";
+      const prefix = defaultPrefix(ip);
+      const first = firstLastFromNetwork(ip.SubnetDecimal, ip.BroadcastDecimal);
+      const hostCount = usableHosts(cidr);
+      let subnetBitCount = "—";
+      let subnetNote = "";
+      let subnetCount = null;
+      try {
+        const counted = countUsableSubnets(cidr, ip);
+        subnetCount = counted[1];
+        subnetBitCount = String(subnetBits(cidr, ip));
+        subnetNote = String(subnetCount);
+      } catch (exc) {
+        subnetNote = exc.message;
+      }
+
+      const base = networkBase(n1, n2, n3, n4, cidr);
+      const plan = subnettingPlan(base, cidr, hosts);
+
+      const summaryRows = [
+        ["IPv4 / CIDR", ip.Address, ""],
+        ["Type", ip.IPType, ""],
+        ["Class", klass, ""],
+        ["Default class prefix", prefix == null ? "—" : String(prefix), ""],
+        ["Host", ip.HostDecimal, ip.HostBinary],
+        ["Subnet mask", ip.MaskDecimal, ip.MaskBinary],
+        ["Network ID", ip.SubnetDecimal, ip.SubnetBinary],
+        ["Broadcast ID", ip.BroadcastDecimal, ip.BroadcastBinary],
+        ["First usable", first[0], dottedToBinary(first[0])],
+        ["Last usable", first[1], dottedToBinary(first[1])],
+        ["Usable hosts", String(hostCount), `2^(${32 - cidr}) - 2`],
+        ["Host bits", String(hostBits(cidr)), "32 - CIDR"],
+        ["Subnet bits", String(subnetBitCount), "CIDR - default prefix"],
+        ["Usable subnets", subnetNote, subnetCount == null ? "" : "2^(subnet bits)"],
+        ["Valid range", `${first[0]} – ${first[1]}`, ""],
+      ];
+
+      const planRows = plan.map((row) => [
+        row.name,
+        String(row.requested_hosts),
+        String(row.block_size),
+        `/${row.cidr}`,
+        row.network,
+        row.first,
+        row.last,
+        row.broadcast,
+        String(row.usable),
+      ]);
+
+      return {
+        parent: `${intToIp(base)}/${cidr}`,
+        summaryRows,
+        planRows,
+        plan,
+      };
+    }
+
+    document.getElementById("add-subnet").addEventListener("click", () => addSubnet());
+
+    document.getElementById("calc-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearError();
+      const overlay = document.getElementById("overlay");
+      overlay.classList.add("show");
+      try {
+        const result = compute();
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        lastResult = result;
+        fillTable(document.getElementById("summary-table"), result.summaryRows);
+        fillTable(document.getElementById("plan-table"), result.planRows);
+        drawDiagram(result.parent, result.plan);
+        const res = document.getElementById("results");
+        res.classList.remove("hidden", "reveal");
+        void res.offsetWidth;
+        res.classList.add("reveal");
+      } catch (exc) {
+        showError(exc.message);
+        document.getElementById("results").classList.add("hidden");
+      } finally {
+        overlay.classList.remove("show");
+      }
+    });
+
+    document.querySelectorAll("[data-export]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!lastResult) return;
+        const kind = btn.dataset.export;
+        if (kind === "summary-csv") {
+          download("subnet-summary.csv", toCsv(["Field", "Decimal", "Binary / note"], lastResult.summaryRows), "text/csv");
+        } else if (kind === "summary-json") {
+          download("subnet-summary.json", JSON.stringify(lastResult.summaryRows.map(([field, decimal, note]) => ({ field, decimal, note })), null, 2), "application/json");
+        } else if (kind === "plan-csv") {
+          download("subnet-plan.csv", toCsv(["Subnet", "Requested hosts", "Block size", "CIDR", "Network", "First usable", "Last usable", "Broadcast", "Usable hosts"], lastResult.planRows), "text/csv");
+        } else if (kind === "plan-json") {
+          download("subnet-plan.json", JSON.stringify(lastResult.plan, null, 2), "application/json");
+        }
+      });
+    });
+
+    function savePng() {
+      const svg = document.querySelector("#diagram svg");
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      const [, , w, h] = svg.getAttribute("viewBox").split(" ").map(Number);
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      // page CSS and animations don't travel with the SVG, so bake in the final look
+      clone.insertAdjacentHTML("afterbegin",
+        `<style>text{font-family:"Segoe UI",Arial,sans-serif;fill:#000}.link{fill:none;stroke:#000;stroke-width:1.6}</style><rect width="${w}" height="${h}" fill="#fff"/>`);
+      const scale = 2;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = w * scale;
+        canvas.height = h * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "network-topology.png";
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }, "image/png");
+      };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    }
+
+    document.getElementById("save-png").addEventListener("click", savePng);
+
+    initSubnets();
+  </script>
+</body>
+</html>
