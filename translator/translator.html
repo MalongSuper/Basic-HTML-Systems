@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+  <title>Language Translator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Font Awesome CDN Link for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <style>
+    /* Import Google Font - Poppins */
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+    :root {
+      --bg: #d6e9f8;          /* light blue page background */
+      --accent: #2b7fc7;      /* light blue button */
+      --accent-hover: #226aa8;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 10px;
+      min-height: 100vh;
+      background: var(--bg);
+    }
+
+    .container {
+      max-width: 690px;
+      width: 100%;
+      padding: 30px;
+      background: #fff;
+      border-radius: 7px;
+      box-shadow: 0 10px 20px rgba(43, 127, 199, 0.12);
+    }
+
+    .wrapper {
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    .wrapper .text-input {
+      display: flex;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .text-input .to-text {
+      border-radius: 0px;
+      border-left: 1px solid #ccc;
+    }
+
+    .text-input textarea {
+      height: 250px;
+      width: 100%;
+      border: none;
+      outline: none;
+      resize: none;
+      background: none;
+      font-size: 18px;
+      padding: 10px 15px;
+      border-radius: 5px;
+    }
+
+    .text-input textarea::placeholder {
+      color: #b7b6b6;
+    }
+
+    .controls,
+    li,
+    .icons,
+    .icons i {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .controls {
+      list-style: none;
+      padding: 12px 15px;
+      gap: 10px;
+    }
+
+    .controls .row {
+      flex: 1 1 0;
+      min-width: 0; /* lets the dropdowns shrink instead of pushing icons out of the frame */
+    }
+
+    .controls .row .icons {
+      width: auto;
+      flex: none;
+    }
+
+    .controls .row .icons i {
+      width: 36px;
+      color: #adadad;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+      justify-content: center;
+    }
+
+    .controls .row .icons i:hover {
+      color: var(--accent);
+    }
+
+    .controls .row.from .icons {
+      padding-right: 8px;
+      margin-right: 8px;
+      border-right: 1px solid #ccc;
+    }
+
+    .controls .row.to .icons {
+      padding-left: 8px;
+      margin-left: 8px;
+      border-left: 1px solid #ccc;
+    }
+
+    .controls .row select {
+      color: #333;
+      border: none;
+      outline: none;
+      font-size: 18px;
+      background: none;
+      padding-left: 5px;
+      flex: 1;
+      width: 100%;
+      min-width: 0;
+      text-overflow: ellipsis;
+    }
+
+    .text-input textarea::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .controls .row select::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .text-input textarea::-webkit-scrollbar-track,
+    .controls .row select::-webkit-scrollbar-track {
+      background: #fff;
+    }
+
+    .text-input textarea::-webkit-scrollbar-thumb {
+      background: #ddd;
+      border-radius: 8px;
+    }
+
+    .controls .row select::-webkit-scrollbar-thumb {
+      background: #999;
+      border-radius: 8px;
+      border-right: 2px solid #ffffff;
+    }
+
+    .controls .exchange {
+      flex: none;
+      padding: 0 4px;
+      color: #adadad;
+      cursor: pointer;
+      font-size: 16px;
+      transition: transform 0.2s ease;
+    }
+
+    .controls .exchange:hover {
+      color: var(--accent);
+    }
+
+    .controls i:active {
+      transform: scale(0.9);
+    }
+
+    .container button {
+      width: 100%;
+      padding: 14px;
+      outline: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      margin-top: 20px;
+      font-size: 17px;
+      border-radius: 5px;
+      background: var(--accent);
+      transition: background 0.2s ease;
+    }
+
+    .container button:hover {
+      background: var(--accent-hover);
+    }
+
+    .container button:disabled {
+      opacity: 0.7;
+      cursor: wait;
+    }
+
+    .hint {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 14px;
+      color: #c53030;
+    }
+
+    @media (max-width: 660px) {
+      .container {
+        padding: 20px;
+      }
+
+      .wrapper .text-input {
+        flex-direction: column;
+      }
+
+      .text-input .to-text {
+        border-left: 0px;
+        border-top: 1px solid #ccc;
+      }
+
+      .text-input textarea {
+        height: 200px;
+      }
+
+      .controls .row .icons {
+        display: none;
+      }
+
+      .container button {
+        padding: 13px;
+        font-size: 16px;
+      }
+
+      .controls .row select {
+        font-size: 16px;
+      }
+
+      .controls .exchange {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="wrapper">
+      <div class="text-input">
+        <textarea spellcheck="false" class="from-text" placeholder="Enter text"></textarea>
+        <textarea spellcheck="false" readonly disabled class="to-text" placeholder="Translation"></textarea>
+      </div>
+      <ul class="controls">
+        <li class="row from">
+          <div class="icons">
+            <i data-id="from" class="fas fa-volume-up" title="Listen"></i>
+            <i data-id="from" class="fas fa-copy" title="Copy"></i>
+          </div>
+          <select></select>
+        </li>
+        <li class="exchange"><i class="fas fa-exchange-alt"></i></li>
+        <li class="row to">
+          <select></select>
+          <div class="icons">
+            <i data-id="to" class="fas fa-volume-up" title="Listen"></i>
+            <i data-id="to" class="fas fa-copy" title="Copy"></i>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <button>Translate Text</button>
+    <p class="hint" role="alert" hidden>Please enter some text to translate.</p>
+  </div>
+
+  <script>
+    // Supported languages (code -> display name).
+    // To add more, just add entries here, e.g. "nl-NL": "Dutch".
+    const countries = {
+      "zh-CN": "Chinese",
+      "hr-HR": "Croatian",
+      "nl-NL": "Dutch",
+      "en-US": "English (American)",
+      "en-GB": "English (British)",
+      "fr-FR": "French",
+      "de-DE": "German",
+      "el-GR": "Greek",
+      "hi-IN": "Hindi",
+      "hu-HU": "Hungarian",
+      "it-IT": "Italian",
+      "ja-JP": "Japanese",
+      "ko-KR": "Korean",
+      "no-NO": "Norwegian",
+      "pt-PT": "Portuguese",
+      "ru-RU": "Russian",
+      "es-ES": "Spanish",
+      "sv-SE": "Swedish",
+      "tr-TR": "Turkish",
+      "vi-VN": "Vietnamese"
+    };
+
+    // Small American <-> British spelling map (the translation API can't tell the two apart)
+    const usToGb = {
+      color: "colour", colors: "colours", favorite: "favourite", favorites: "favourites",
+      honor: "honour", humor: "humour", neighbor: "neighbour", neighbors: "neighbours",
+      center: "centre", centers: "centres", theater: "theatre", meter: "metre",
+      liter: "litre", organize: "organise", organized: "organised", realize: "realise",
+      realized: "realised", recognize: "recognise", analyze: "analyse", apologize: "apologise",
+      defense: "defence", license: "licence", gray: "grey", program: "programme",
+      traveling: "travelling", traveled: "travelled", catalog: "catalogue",
+      dialog: "dialogue", flavor: "flavour", behavior: "behaviour", labor: "labour",
+      jewelry: "jewellery", mom: "mum", sidewalk: "pavement", elevator: "lift",
+      apartment: "flat", truck: "lorry", vacation: "holiday", cookie: "biscuit",
+      candy: "sweets", gasoline: "petrol", trash: "rubbish", soccer: "football"
+    };
+    const gbToUs = Object.fromEntries(Object.entries(usToGb).map(([us, gb]) => [gb, us]));
+
+    function swapEnglish(text, map) {
+      return text.replace(/[A-Za-z]+/g, (word) => {
+        const hit = map[word.toLowerCase()];
+        if (!hit) return word;
+        if (word === word.toUpperCase() && word.length > 1) return hit.toUpperCase();
+        if (word[0] === word[0].toUpperCase()) return hit[0].toUpperCase() + hit.slice(1);
+        return hit;
+      });
+    }
+
+    const fromText = document.querySelector(".from-text");
+    const toText = document.querySelector(".to-text");
+    const exchageIcon = document.querySelector(".exchange");
+    const selectTag = document.querySelectorAll("select");
+    const icons = document.querySelectorAll(".row i");
+    const translateBtn = document.querySelector("button");
+
+    // Fill both dropdowns. Defaults: English (British) -> German
+    selectTag.forEach((tag, id) => {
+      for (const code in countries) {
+        const defaultCode = id === 0 ? "en-GB" : "de-DE";
+        const selected = code === defaultCode ? "selected" : "";
+        tag.insertAdjacentHTML("beforeend", `<option ${selected} value="${code}">${countries[code]}</option>`);
+      }
+    });
+
+    // Swap languages and text
+    exchageIcon.addEventListener("click", () => {
+      const tempText = fromText.value,
+        tempLang = selectTag[0].value;
+      fromText.value = toText.value;
+      toText.value = tempText;
+      selectTag[0].value = selectTag[1].value;
+      selectTag[1].value = tempLang;
+    });
+
+    // Clear the translation when the input is emptied
+    fromText.addEventListener("keyup", () => {
+      if (!fromText.value) toText.value = "";
+    });
+
+    // Ctrl/Cmd + Enter translates
+    fromText.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        translateBtn.click();
+      }
+    });
+
+    // ---- Translation helpers ----
+
+    // MyMemory rejects queries over ~500 characters, so long text is sent in pieces.
+    const MAX_CHUNK = 450;
+
+    function chunkLine(line) {
+      // Split into sentences (keeps decimals like 3.5 intact), then pack up to MAX_CHUNK
+      const parts = line.split(/(?<=[.!?।])\s+|(?<=[。！？])/).filter(Boolean);
+      const chunks = [];
+      let cur = "";
+      for (const part of parts) {
+        if (cur && cur.length + part.length + 1 > MAX_CHUNK) {
+          chunks.push(cur);
+          cur = part;
+        } else {
+          cur = cur ? cur + " " + part : part;
+        }
+      }
+      if (cur) chunks.push(cur);
+      // Hard-split any single sentence that is still too long
+      return chunks.flatMap((c) => {
+        const out = [];
+        for (let i = 0; i < c.length; i += MAX_CHUNK) out.push(c.slice(i, i + MAX_CHUNK));
+        return out;
+      });
+    }
+
+    async function translateChunk(q, from, to) {
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${from}|${to}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (Number(data.responseStatus) !== 200) {
+        throw new Error(data.responseDetails || "Translation failed");
+      }
+      // Prefer the top match (id 0) when available, otherwise use the main result
+      const best = (data.matches || []).find((m) => Number(m.id) === 0);
+      return best ? best.translation : data.responseData.translatedText;
+    }
+
+    async function translateText(text, from, to, myId) {
+      const sep = /^(ja|zh)/.test(to) ? "" : " ";
+      const lines = text.split("\n");
+      const results = [];
+      for (const line of lines) {
+        if (!line.trim()) {
+          results.push("");
+          continue;
+        }
+        const pieces = [];
+        for (const chunk of chunkLine(line.trim())) {
+          if (myId !== requestId) return null; // superseded by a newer request
+          pieces.push(await translateChunk(chunk, from, to));
+        }
+        results.push(pieces.join(sep));
+      }
+      return results.join("\n");
+    }
+
+    let requestId = 0; // ignore results from outdated requests
+    const hint = document.querySelector(".hint");
+
+    async function translate(manual) {
+      const myId = ++requestId; // invalidates any request still in flight
+      translateBtn.disabled = false;
+      toText.setAttribute("placeholder", "Translation");
+
+      const text = fromText.value.trim(),
+        translateFrom = selectTag[0].value,
+        translateTo = selectTag[1].value;
+
+      // Nothing typed: remind the user (only when they pressed the button)
+      if (!text) {
+        toText.value = "";
+        if (manual) {
+          hint.hidden = false;
+          fromText.focus();
+        }
+        return;
+      }
+      hint.hidden = true;
+
+      // Same language: nothing to translate
+      if (translateFrom === translateTo) {
+        toText.value = text;
+        return;
+      }
+
+      // American <-> British English handled locally
+      if (translateFrom.startsWith("en") && translateTo.startsWith("en")) {
+        toText.value = swapEnglish(text, translateTo === "en-GB" ? usToGb : gbToUs);
+        return;
+      }
+
+      toText.value = "";
+      toText.setAttribute("placeholder", "Translating...");
+      translateBtn.disabled = true;
+
+      try {
+        const result = await translateText(text, translateFrom, translateTo, myId);
+        if (result === null || myId !== requestId) return;
+        toText.value = result;
+        toText.setAttribute("placeholder", "Translation");
+      } catch (err) {
+        if (myId !== requestId) return;
+        console.error(err);
+        toText.value = "";
+        toText.setAttribute("placeholder", "Translation failed. Please try again.");
+      } finally {
+        if (myId === requestId) translateBtn.disabled = false;
+      }
+    }
+
+    translateBtn.addEventListener("click", () => translate(true));
+
+    // Hide the reminder as soon as the user starts typing
+    fromText.addEventListener("input", () => { hint.hidden = true; });
+
+    // Changing either language re-translates automatically (if there is text)
+    selectTag.forEach((tag) => tag.addEventListener("change", () => translate(false)));
+
+    // Copy and text-to-speech icons
+    icons.forEach((icon) => {
+      icon.addEventListener("click", ({ target }) => {
+        const side = target.dataset.id; // "from" or "to"
+        const text = side === "from" ? fromText.value : toText.value;
+        if (!text) return;
+
+        if (target.classList.contains("fa-copy")) {
+          navigator.clipboard.writeText(text).catch(() => {
+            // Fallback for older browsers / non-secure contexts
+            const area = document.createElement("textarea");
+            area.value = text;
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand("copy");
+            area.remove();
+          });
+        } else {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = side === "from" ? selectTag[0].value : selectTag[1].value;
+          speechSynthesis.cancel();
+          speechSynthesis.speak(utterance);
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>
