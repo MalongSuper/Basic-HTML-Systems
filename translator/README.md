@@ -11,6 +11,8 @@ A lightweight, single-file web app that translates text between 20 languages. It
 - Copies the original or translated text to the clipboard
 - Swaps the source and target languages (and their text) in one click
 - Re-translates automatically whenever you change a language
+- Shows a small, lighter romanization line under results in non-Latin scripts (Japanese, Chinese, Korean, Hindi, Russian, Greek)
+- Lets you type those languages in romanized letters (e.g. *konnichiwa*, *nihao*, *annyeonghaseyo*) and still translate to any other language
 - Works on desktop and mobile with a responsive layout
 
 ## Supported languages
@@ -56,6 +58,8 @@ Everything lives in one HTML file, organised in three parts:
 
 **Long text:** MyMemory limits each request to about 500 characters. The app splits long input into sentence-sized pieces (keeping line breaks), translates them one after another and joins the results.
 
+**Non-Latin scripts:** for Japanese, Chinese, Korean, Hindi, Russian and Greek, the app uses two extra steps. If the source language is one of these and the input is typed in Latin letters, it is first converted to the native script (shown as a small `→` line under the input) and then translated. If the target is one of these, the result is romanized and the romanization appears under the translation. Both steps use Google's unofficial transliteration services; if they fail, the app falls back to translating the text as typed and simply omits the romanization.
+
 **Out-of-date requests:** each translation is numbered, so if you change a language or start a new translation mid-request, the older result is discarded rather than overwriting the new one.
 
 ## Key functions
@@ -83,6 +87,7 @@ Everything lives in one HTML file, organised in three parts:
 - The free MyMemory service has a daily usage limit, so heavy use can be rate-limited.
 - Machine translation can be inaccurate, especially for idioms or specialised text. It is not suitable for legal or medical content.
 - The American ↔ British converter covers common words only, not every spelling rule.
+- Romanization and romanized typing rely on unofficial Google endpoints that may change, be rate-limited, or be blocked in some networks. Converted kanji/hanzi can be wrong when the romanization is ambiguous, so check the small `→` line.
 - Text-to-speech depends on the voices installed in the user's browser and operating system, so some languages may have no voice available.
 
 ## Credits

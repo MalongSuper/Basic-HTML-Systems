@@ -54,7 +54,41 @@
 
     .text-input .to-text {
       border-radius: 0px;
+    }
+
+    /* Each side is a pane: text box on top, optional small line underneath */
+    .text-input .pane {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 250px;
+      min-width: 0;
+    }
+
+    .text-input .to-pane {
       border-left: 1px solid #ccc;
+    }
+
+    .text-input .pane textarea {
+      flex: 1;
+      min-height: 0;
+      height: auto;
+    }
+
+    /* Smaller, lighter line (romanization / how typed letters were read) */
+    .sub {
+      display: none;
+      padding: 0 15px 10px;
+      max-height: 40%;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.4;
+      color: #7d8fa0;
+      white-space: pre-wrap;
+    }
+
+    .sub:not(:empty) {
+      display: block;
     }
 
     .text-input textarea {
@@ -216,12 +250,12 @@
         flex-direction: column;
       }
 
-      .text-input .to-text {
+      .text-input .to-pane {
         border-left: 0px;
         border-top: 1px solid #ccc;
       }
 
-      .text-input textarea {
+      .text-input .pane {
         height: 200px;
       }
 
@@ -249,8 +283,14 @@
   <div class="container">
     <div class="wrapper">
       <div class="text-input">
-        <textarea spellcheck="false" class="from-text" placeholder="Enter text"></textarea>
-        <textarea spellcheck="false" readonly disabled class="to-text" placeholder="Translation"></textarea>
+        <div class="pane from-pane">
+          <textarea spellcheck="false" class="from-text" placeholder="Enter text"></textarea>
+          <div class="sub"></div>
+        </div>
+        <div class="pane to-pane">
+          <textarea spellcheck="false" readonly disabled class="to-text" placeholder="Translation"></textarea>
+          <div class="sub"></div>
+        </div>
       </div>
       <ul class="controls">
         <li class="row from">
@@ -332,6 +372,8 @@
     const selectTag = document.querySelectorAll("select");
     const icons = document.querySelectorAll(".row i");
     const translateBtn = document.querySelector("button");
+    const fromSub = document.querySelector(".from-pane .sub");
+    const toSub = document.querySelector(".to-pane .sub");
 
     // Fill both dropdowns. Defaults: English (British) -> German
     selectTag.forEach((tag, id) => {
@@ -350,11 +392,18 @@
       toText.value = tempText;
       selectTag[0].value = selectTag[1].value;
       selectTag[1].value = tempLang;
+      fromSub.textContent = "";
+      toSub.textContent = "";
+      updatePlaceholder();
     });
 
     // Clear the translation when the input is emptied
     fromText.addEventListener("keyup", () => {
-      if (!fromText.value) toText.value = "";
+      if (!fromText.value) {
+        toText.value = "";
+        fromSub.textContent = "";
+        toSub.textContent = "";
+      }
     });
 
     // Ctrl/Cmd + Enter translates
@@ -364,6 +413,42 @@
         translateBtn.click();
       }
     });
+
+    // ---- Non-Latin scripts: romanized typing (input) and romanization (output) ----
+    const NON_LATIN = ["ja", "zh", "ko", "ru", "el", "hi"];
+    const INPUT_TOOLS = {
+      ja: "ja-t-i0-und", zh: "zh-t-i0-pinyin", ko: "ko-t-i0-und",
+      ru: "ru-t-i0-und", el: "el-t-i0-und", hi: "hi-t-i0-und"
+    };
+    const baseLang = (code) => code.split("-")[0];
+    const isNonLatin = (code) => NON_LATIN.includes(baseLang(code));
+    const looksRomanized = (text) => !/[^\u0000-\u024F]/.test(text); // only Latin letters, digits, basic punctuation
+    const sepFor = (lang) => (/^(ja|zh)/.test(lang) ? "" : " ");
+
+    function updatePlaceholder() {
+      fromText.placeholder = isNonLatin(selectTag[0].value)
+        ? "Enter text (typing in romanized letters also works)"
+        : "Enter text";
+    }
+    updatePlaceholder();
+
+    // Romanized letters -> native script, e.g. "konnichiwa" -> "こんにちは"
+    async function romanizedToNative(text, lang) {
+      const url = `https://inputtools.google.com/request?text=${encodeURIComponent(text)}&itc=${INPUT_TOOLS[baseLang(lang)]}&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=demopage`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data[0] !== "SUCCESS") throw new Error("Conversion failed");
+      return data[1].map((seg) => seg[1][0]).join(sepFor(lang));
+    }
+
+    // Native script -> romanization, e.g. "こんにちは" -> "Konnichiwa"
+    async function romanize(text, lang) {
+      const sl = lang === "zh-CN" ? "zh-CN" : baseLang(lang);
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=en&dt=t&dt=rm&q=${encodeURIComponent(text)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return (data[0] || []).filter((seg) => seg[0] == null && seg[3]).map((seg) => seg[3]).join(" ");
+    }
 
     // ---- Translation helpers ----
 
@@ -405,24 +490,26 @@
       return best ? best.translation : data.responseData.translatedText;
     }
 
-    async function translateText(text, from, to, myId) {
-      const sep = /^(ja|zh)/.test(to) ? "" : " ";
-      const lines = text.split("\n");
-      const results = [];
-      for (const line of lines) {
+    // Runs an async function over every line / sentence-sized chunk of the text and rejoins the results
+    async function mapChunks(text, sep, fn, myId) {
+      const out = [];
+      for (const line of text.split("\n")) {
         if (!line.trim()) {
-          results.push("");
+          out.push("");
           continue;
         }
         const pieces = [];
         for (const chunk of chunkLine(line.trim())) {
           if (myId !== requestId) return null; // superseded by a newer request
-          pieces.push(await translateChunk(chunk, from, to));
+          pieces.push(await fn(chunk));
         }
-        results.push(pieces.join(sep));
+        out.push(pieces.join(sep));
       }
-      return results.join("\n");
+      return out.join("\n");
     }
+
+    const translateText = (text, from, to, myId) =>
+      mapChunks(text, sepFor(to), (chunk) => translateChunk(chunk, from, to), myId);
 
     let requestId = 0; // ignore results from outdated requests
     const hint = document.querySelector(".hint");
@@ -431,6 +518,8 @@
       const myId = ++requestId; // invalidates any request still in flight
       translateBtn.disabled = false;
       toText.setAttribute("placeholder", "Translation");
+      fromSub.textContent = "";
+      toSub.textContent = "";
 
       const text = fromText.value.trim(),
         translateFrom = selectTag[0].value,
@@ -440,6 +529,7 @@
       if (!text) {
         toText.value = "";
         if (manual) {
+          hint.textContent = "Please enter some text to translate.";
           hint.hidden = false;
           fromText.focus();
         }
@@ -464,10 +554,36 @@
       translateBtn.disabled = true;
 
       try {
-        const result = await translateText(text, translateFrom, translateTo, myId);
+        let source = text;
+
+        // Romanized typing in a non-Latin source language: convert to the native script first
+        if (isNonLatin(translateFrom) && looksRomanized(text)) {
+          try {
+            const native = await mapChunks(text, sepFor(translateFrom), (c) => romanizedToNative(c, translateFrom), myId);
+            if (native === null || myId !== requestId) return;
+            if (native.trim()) {
+              source = native;
+              fromSub.textContent = "→ " + native; // show how the typed letters were read
+            }
+          } catch (e) {
+            console.error(e); // fall back to translating the text exactly as typed
+          }
+        }
+
+        const result = await translateText(source, translateFrom, translateTo, myId);
         if (result === null || myId !== requestId) return;
         toText.value = result;
         toText.setAttribute("placeholder", "Translation");
+
+        // Show the romanization under results written in a non-Latin script
+        if (isNonLatin(translateTo)) {
+          try {
+            const roman = await mapChunks(result, " ", (c) => romanize(c, translateTo), myId);
+            if (roman !== null && myId === requestId) toSub.textContent = roman;
+          } catch (e) {
+            console.error(e); // romanization is optional; the translation is already shown
+          }
+        }
       } catch (err) {
         if (myId !== requestId) return;
         console.error(err);
@@ -484,7 +600,44 @@
     fromText.addEventListener("input", () => { hint.hidden = true; });
 
     // Changing either language re-translates automatically (if there is text)
-    selectTag.forEach((tag) => tag.addEventListener("change", () => translate(false)));
+    selectTag.forEach((tag) => tag.addEventListener("change", () => { updatePlaceholder(); translate(false); }));
+
+    // ---- Text-to-speech: pick an installed voice that matches the language ----
+    let voices = [];
+    const loadVoices = () => { voices = speechSynthesis.getVoices(); };
+    loadVoices();
+    speechSynthesis.addEventListener("voiceschanged", loadVoices); // voices load asynchronously
+
+    function findVoice(lang) {
+      // Some platforms (e.g. Android) report "vi_VN" instead of "vi-VN", so normalise both
+      const norm = (l) => l.replace("_", "-").toLowerCase();
+      const target = norm(lang);
+      const base = target.split("-")[0];
+      const bases = base === "no" ? ["no", "nb", "nn"] : [base]; // Norwegian is often listed as nb-NO
+      return (
+        voices.find((v) => norm(v.lang) === target) ||
+        voices.find((v) => bases.includes(norm(v.lang).split("-")[0]))
+      );
+    }
+
+    function speak(text, lang) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voice = findVoice(lang);
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang;
+      } else {
+        utterance.lang = lang;
+        if (voices.length) {
+          const msg = `No ${countries[lang]} voice is installed on this device.`;
+          hint.textContent = msg;
+          hint.hidden = false;
+          setTimeout(() => { if (hint.textContent === msg) hint.hidden = true; }, 4000);
+        }
+      }
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    }
 
     // Copy and text-to-speech icons
     icons.forEach((icon) => {
@@ -504,10 +657,7 @@
             area.remove();
           });
         } else {
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = side === "from" ? selectTag[0].value : selectTag[1].value;
-          speechSynthesis.cancel();
-          speechSynthesis.speak(utterance);
+          speak(text, side === "from" ? selectTag[0].value : selectTag[1].value);
         }
       });
     });
